@@ -111,6 +111,9 @@ Resources:
       SecurityGroupIds:
         - !Ref BastionSecurityGroup
       KeyName: Ayan
+      Tags:
+        - Key: Name
+          Value: BastionHost      
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
@@ -118,5 +121,4 @@ Resources:
           yum install -y httpd
           systemctl start httpd
           systemctl enable httpd
-          echo "<h1>Welcome to My Web Server</h1>" > /var/www/html/index.html
-  
+          chmod -R 755 /var/www/html  
