@@ -23,7 +23,7 @@ jobs:
       - name: Deploy CloudFormation Stack
         run: |
           aws cloudformation deploy \
-            --template-file cloudformation-template.yml \
+            --template-file cloudformation.yml \
             --stack-name static-website-stack \
             --capabilities CAPABILITY_NAMED_IAM
 
