@@ -24,7 +24,7 @@ jobs:
         run: |
           aws cloudformation deploy \
             --template-file cloudformation/ cloudformation.yml /
-            --stack-name static-website-stack \
+            --stack-name my-website \
             --capabilities CAPABILITY_NAMED_IAM
 
       - name: Get EC2 Public IP
