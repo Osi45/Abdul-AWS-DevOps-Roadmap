@@ -1,4 +1,4 @@
-name: Deploy Static Website to EC2
+name: Deploy to AWS EC2
 
 on:
   push:
@@ -10,50 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Set up AWS CLI
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+    - name: Set up AWS CLI
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
 
-      - name: Debug - List current directory
-        run: ls -la
+    - name: Get EC2 Public IP
+      run: |
+        EC2_PUBLIC_IP=$(aws ec2 describe-instances \
+          --filters "Name=instance-state-name,Values=running" \
+          --query "Reservations[*].Instances[*].PublicIpAddress" \
+          --output text)
+        echo "EC2_PUBLIC_IP=$EC2_PUBLIC_IP" >> $GITHUB_ENV
+        echo "Public IP: $EC2_PUBLIC_IP"
+
+    - name: Add SSH key
+      run: |
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
+        chmod 600 key.pem
+
+    - name: Deploy Application
+      run: |
+        ssh -i key.pem ec2-user@$EC2_PUBLIC_IP "cd /home/ec2-user/my-app && git pull && npm install && npm start"
 
 
-      - name: Deploy CloudFormation Stack
-        run: |
-          aws cloudformation deploy \
-            --template-file cloudformation.yml \
-            --stack-name my-website \
-            --capabilities CAPABILITY_NAMED_IAM
-
-      - name: Get EC2 Public IP
-        run: |
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=tag:Name,Values=BastionHost" \
-            --query "Reservations[0].Instances[0].InstanceId" \
-            --output text)
-          
-          PUBLIC_IP=$(aws ec2 describe-instances \
-            --instance-ids $INSTANCE_ID \
-            --query "Reservations[0].Instances[0].PublicIpAddress" \
-            --output text)
-
-          echo "EC2_PUBLIC_IP=$PUBLIC_IP" >> $GITHUB_ENV
-
-      - name: Print EC2 Public IP
-        run: |
-          echo "EC2 Public IP: $EC2_PUBLIC_IP"
-
-      - name: Deploy Static Files to EC2
-        run: |
-          echo "Deploying files to EC2 instance at $EC2_PUBLIC_IP"
-          scp -i ${{ secrets.EC2_SSH_PRIVATE_KEY }} \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            -r ./index.html ./styles.css ./app.js \
-            ec2-user@$EC2_PUBLIC_IP:/var/www/html/
