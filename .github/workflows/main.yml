@@ -20,8 +20,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: List files in repository
-        run: ls -R
+      - name: Debug - List current directory
+        run: ls -la
 
 
       - name: Deploy CloudFormation Stack
