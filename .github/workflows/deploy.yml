@@ -42,5 +42,5 @@ jobs:
 
     - name: Deploy Application
       run: |
-        ssh -i key.pem ec2-user@$EC2_PUBLIC_IP "cd /home/ec2-user/my-app && git pull && npm install && npm start"
+        ssh -i key.pem ubuntu@$EC2_PUBLIC_IP "cd /home/ubuntu/my-app && git pull && npm install && npm start"
 
