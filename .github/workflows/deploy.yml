@@ -13,34 +13,30 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup SSH Key
+      - name: Setup SSH Keys
         run: |
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ayan.pem
-          chmod 400 ayan.pem
+          chmod 600 ayan.pem
+          ssh-keygen -y -f ayan.pem > ayan.pub
+          echo "Public key starts with:"
+          head -n 1 ayan.pub
 
-      - name: Verify Key
+      - name: Verify Key Pair
         run: |
-          echo "Key verification:"
-          head -n 1 ayan.pem
-          ssh-keygen -l -f ayan.pem
-
-      - name: Add to Known Hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H ${{ secrets.EC2_PUBLIC_IP }} >> ~/.ssh/known_hosts
-
-      - name: Test Connection
-        run: |
-          ssh -i ayan.pem -o ConnectTimeout=10 ubuntu@${{ secrets.EC2_PUBLIC_IP }} "echo 'SSH success! Current user: $(whoami)'"
+          echo "=== Key Verification ==="
+          echo "Private key header: $(head -n 1 ayan.pem)"
+          echo "Public key type: $(ssh-keygen -y -f ayan.pem | head -n 1 | cut -d' ' -f1)"
+          echo "Fingerprint: $(ssh-keygen -lf ayan.pem)"
 
       - name: Deploy Application
         run: |
-          ssh -i ayan.pem ubuntu@${{ secrets.EC2_PUBLIC_IP }} \
-            "cd /home/ubuntu/my-app && \
-            git pull && \
-            npm install && \
-            pm2 restart all"
+          ssh -i ayan.pem ubuntu@${{ secrets.EC2_PUBLIC_IP }} << 'EOF'
+          cd /home/ubuntu/my-app
+          git pull
+          npm install
+          pm2 restart all
+          EOF
 
       - name: Cleanup
         if: always()
-        run: rm -f ayan.pem
+        run: rm -f ayan.pem ayan.pub
