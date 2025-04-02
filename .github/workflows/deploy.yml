@@ -23,25 +23,24 @@ jobs:
     - name: Get EC2 Public IP
       run: |
         EC2_PUBLIC_IP=$(aws ec2 describe-instances \
-          --filters "Name=tag:Name,Values=BastionHost" "Name=instance-state-name,Values=running" \
-          --query "Reservations[0].Instances[0].PublicIpAddress" \
+          --filters "Name=instance-state-name,Values=running" \
+          --query "Reservations[*].Instances[*].PublicIpAddress" \
           --output text)
         echo "EC2_PUBLIC_IP=$EC2_PUBLIC_IP" >> $GITHUB_ENV
         echo "Public IP: $EC2_PUBLIC_IP"
+
+    - name: Create known_hosts file
+      run: mkdir -p ~/.ssh && touch ~/.ssh/known_hosts
+
+    - name: Add SSH host to known_hosts
+      run: ssh-keyscan -H $EC2_PUBLIC_IP >> ~/.ssh/known_hosts
 
     - name: Add SSH key
       run: |
         echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
         chmod 600 key.pem
-        ssh-keyscan -H $EC2_PUBLIC_IP >> ~/.ssh/known_hosts
 
     - name: Deploy Application
       run: |
-        ssh -i key.pem ec2-user@$EC2_PUBLIC_IP << 'EOF'
-        cd /home/ec2-user/my-app
-        git pull origin main || git reset --hard origin/main
-        npm install
-        pm2 restart my-app || npm start
-        EOF
-
+        ssh -i key.pem ec2-user@$EC2_PUBLIC_IP "cd /home/ec2-user/my-app && git pull && npm install && npm start"
 
