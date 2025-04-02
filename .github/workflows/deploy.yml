@@ -37,7 +37,7 @@ jobs:
 
     - name: Add SSH key
       run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" | base64 --decode > key.pem
         chmod 600 key.pem
 
     - name: Deploy Application
