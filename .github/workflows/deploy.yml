@@ -1,47 +1,59 @@
-name: Deploy to AWS EC2
+name: Deploy to EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+env:
+  AWS_REGION: us-east-1
+  EC2_PUBLIC_IP: ${{ secrets.EC2_PUBLIC_IP }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up AWS CLI
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Get EC2 Public IP
-      run: |
-        EC2_PUBLIC_IP=$(aws ec2 describe-instances \
-          --filters "Name=instance-state-name,Values=running" \
-          --query "Reservations[*].Instances[*].PublicIpAddress" \
-          --output text)
-        echo "EC2_PUBLIC_IP=$EC2_PUBLIC_IP" >> $GITHUB_ENV
-        echo "Public IP: $EC2_PUBLIC_IP"
+      - name: Setup SSH Key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > key.pem
+          if [ ! -f key.pem ]; then
+            echo "::error::Key file not created!"
+            exit 1
+          fi
+          chmod 400 key.pem
+          if ! grep -q "BEGIN RSA PRIVATE KEY" key.pem; then
+            echo "::error::Invalid key format!"
+            exit 1
+          fi
 
-    - name: Create known_hosts file
-      run: mkdir -p ~/.ssh && touch ~/.ssh/known_hosts
+      - name: Add EC2 to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ env.EC2_PUBLIC_IP }} >> ~/.ssh/known_hosts
 
-    - name: Add SSH host to known_hosts
-      run: ssh-keyscan -H $EC2_PUBLIC_IP >> ~/.ssh/known_hosts
+      - name: Test SSH connection
+        run: |
+          ssh -i key.pem -o ConnectTimeout=10 ubuntu@${{ env.EC2_PUBLIC_IP }} "echo 'SSH successful!'"
 
-    - name: Add SSH key
-      run: |
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" key.pem
-        chmod 600 key.pem
-        ssh-keygen -y -f key.pem > key.hub
+      - name: Deploy Application
+        run: |
+          ssh -i key.pem ubuntu@${{ env.EC2_PUBLIC_IP }} \
+            "cd /home/ubuntu/my-app && \
+            git pull && \
+            npm install && \
+            pm2 restart all"
 
-    - name: Deploy Application
-      run: |
-        ssh -i key.pem ubuntu@$EC2_PUBLIC_IP "cd /home/ubuntu/my-app && git pull && npm install && npm start"
-
+      - name: Cleanup
+        if: always()
+        run: rm -f key.pem
